@@ -1,5 +1,5 @@
 // Service worker: guarda os arquivos do app para funcionar sem internet.
-const CACHE = "estoque-v1";
+const CACHE = "estoque-v2";
 const ARQUIVOS = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

@@ -10,6 +10,7 @@ function carregar() {
     const d = JSON.parse(localStorage.getItem(CHAVE)) || {};
     for (const t of TABELAS) d[t] ??= [];
     d.proximoId ??= 1;
+    d.avisoDias ??= 30;  // antecedência do aviso de contrato vencendo
     return d;
   } catch { return Object.fromEntries([...TABELAS.map(t => [t, []]), ["proximoId", 1]]); }
 }
@@ -27,6 +28,23 @@ const porId = (t, id) => db[t].find(x => x.id === Number(id));
 const saldo = supId => db.movimentos
   .filter(m => m.suprimento_id === supId)
   .reduce((s, m) => s + (m.tipo === "entrada" ? m.quantidade : -m.quantidade), 0);
+
+// ---------- Contratos de aluguel ----------
+const diasAte = data => Math.round((new Date(data + "T00:00:00") - new Date(hoje() + "T00:00:00")) / 86400000);
+
+function situacaoContrato(imp) {
+  if (!imp.data_fim || imp.status === "devolvida") return null;
+  const d = diasAte(imp.data_fim);
+  if (d < 0) return { nivel: "vencido", dias: d, texto: `Vencido há ${-d} dia${d === -1 ? "" : "s"}` };
+  if (d === 0) return { nivel: "vencendo", dias: d, texto: "Vence hoje" };
+  if (d <= db.avisoDias) return { nivel: "vencendo", dias: d, texto: `Vence em ${d} dia${d === 1 ? "" : "s"}` };
+  return { nivel: "ok", dias: d, texto: `${d} dias` };
+}
+
+const contratosEmAlerta = () => db.impressoras
+  .map(i => ({ ...i, situacao: situacaoContrato(i) }))
+  .filter(i => i.situacao && i.situacao.nivel !== "ok")
+  .sort((a, b) => a.situacao.dias - b.situacao.dias);
 
 const nomeSup = id => porId("suprimentos", id)?.nome ?? `#${id}`;
 const nomeImp = id => { const i = porId("impressoras", id); return i ? `${i.marca} ${i.modelo}` : id ? `#${id}` : ""; };
@@ -104,6 +122,9 @@ const SECOES = {
   },
   impressoras: {
     titulo: "Impressoras alugadas",
+    listar: () => db.impressoras.map(i => ({ ...i, situacao: situacaoContrato(i) }))
+      .sort((a, b) => (a.situacao?.dias ?? 1e9) - (b.situacao?.dias ?? 1e9)),
+    classeLinha: i => i.situacao?.nivel ?? "",
     campos: [
       ["marca", "Marca", "text", "obrigatorio"], ["modelo", "Modelo", "text", "obrigatorio"], ["numero_serie", "Nº de série"],
       ["locadora", "Locadora"], ["alugada_para", "Alugada para (cliente/destino)"], ["local", "Endereço / local de instalação"],
@@ -111,7 +132,7 @@ const SECOES = {
       ["valor_mensal", "Aluguel mensal (R$)", "money"], ["status", "Status", ["ativa", "manutencao", "devolvida"]],
     ],
     colunas: [["marca", "Marca"], ["modelo", "Modelo"], ["numero_serie", "Série"], ["locadora", "Locadora"],
-      ["alugada_para", "Alugada para"], ["local", "Local"], ["data_fim", "Fim contrato", dataBR],
+      ["alugada_para", "Alugada para"], ["local", "Local"], ["data_fim", "Fim contrato", dataBR], ["situacao", "Contrato", s => s?.texto ?? ""],
       ["valor_mensal", "Aluguel/mês", brl], ["status", "Status"]],
   },
   manutImpressoras: {
@@ -175,8 +196,22 @@ function renderResumo() {
     ["Manutenção de impressoras", brl(soma(db.manutImpressoras, m => m.valor))],
     ["Manutenção de toners", brl(soma(db.manutToners, m => m.valor))],
   ];
-  $conteudo.innerHTML = `<div class="cards">${cards.map(([t, v]) => `<div class="card"><small>${t}</small><strong>${v}</strong></div>`).join("")}</div>
+  const contratos = contratosEmAlerta();
+  const aviso = `<div class="avisos">
+    <h2>Contratos de aluguel ${contratos.length ? `<span class="badge">${contratos.length}</span>` : ""}</h2>
+    ${contratos.length ? contratos.map(i => `<div class="aviso ${i.situacao.nivel}">
+        <b>${esc(i.situacao.texto)}</b> – ${esc(i.marca)} ${esc(i.modelo)}${i.alugada_para ? ` · ${esc(i.alugada_para)}` : ""}
+        <small>Fim: ${dataBR(i.data_fim)}${i.locadora ? ` · Locadora: ${esc(i.locadora)}` : ""}</small></div>`).join("")
+      : `<p class="vazio">Nenhum contrato vencido ou vencendo nos próximos ${db.avisoDias} dias.</p>`}
+    <label class="antecedencia">Avisar com
+      <input id="avisoDias" type="number" min="1" max="365" inputmode="numeric" value="${db.avisoDias}"> dias de antecedência</label>
+  </div>`;
+  $conteudo.innerHTML = aviso + `<div class="cards">${cards.map(([t, v]) => `<div class="card"><small>${t}</small><strong>${v}</strong></div>`).join("")}</div>
     ${baixos.length ? `<p class="alerta">Abaixo do estoque mínimo: ${baixos.join(", ")}</p>` : ""}`;
+  document.getElementById("avisoDias").onchange = e => {
+    const v = Math.min(365, Math.max(1, parseInt(e.target.value) || 30));
+    db.avisoDias = v; salvar(); render();
+  };
 }
 
 function renderSecao(chave, s) {
@@ -185,7 +220,7 @@ function renderSecao(chave, s) {
     <form>${s.campos.map(campoHTML).join("")}<button>Salvar</button></form>
     ${itens.length ? `<div class="tabela"><table>
       <thead><tr>${s.colunas.map(c => `<th>${c[1]}</th>`).join("")}<th></th></tr></thead>
-      <tbody>${itens.map(i => `<tr class="${i.abaixo_do_minimo ? "alerta" : ""}">
+      <tbody>${itens.map(i => `<tr class="${s.classeLinha ? s.classeLinha(i) : i.abaixo_do_minimo ? "alerta" : ""}">
         ${s.colunas.map(([k, , fmt]) => `<td>${esc(fmt ? fmt(i[k]) : i[k])}</td>`).join("")}
         <td><button data-id="${i.id}" aria-label="Excluir">✕</button></td></tr>`).join("")}</tbody>
     </table></div>` : `<p class="vazio">Nenhum registro ainda.</p>`}`;
@@ -230,7 +265,10 @@ function renderBackup() {
 
 function render() {
   $abas.innerHTML = Object.entries(SECOES)
-    .map(([k, s]) => `<button data-k="${k}" class="${k === atual ? "ativa" : ""}">${s.titulo}</button>`).join("");
+    .map(([k, s]) => {
+      const n = k === "impressoras" ? contratosEmAlerta().length : 0;
+      return `<button data-k="${k}" class="${k === atual ? "ativa" : ""}">${s.titulo}${n ? ` <span class="badge">${n}</span>` : ""}</button>`;
+    }).join("");
   $abas.querySelectorAll("button").forEach(b => b.onclick = () => { atual = b.dataset.k; render(); scrollTo(0, 0); });
   if (atual === "resumo") renderResumo();
   else if (atual === "backup") renderBackup();

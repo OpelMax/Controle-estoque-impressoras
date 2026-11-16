@@ -6,6 +6,7 @@ App para celular (Android) que controla:
 - **Entradas e saídas** (a saída pode indicar a impressora de destino; saída maior que o saldo é bloqueada)
 - **Impressoras alugadas**: locadora, para onde/quem foi alugada, endereço, contrato, aluguel mensal, status
 - **Manutenções nas impressoras** e **nos toners** (recarga, cilindro...)
+- **Aviso de contratos de aluguel** vencidos ou vencendo (antecedência ajustável, padrão 30 dias)
 - **Resumo de valores**: estoque, entradas, saídas, aluguéis e manutenções
 - **Backup**: baixa e restaura um arquivo com todos os dados
 
