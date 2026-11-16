@@ -243,9 +243,11 @@ function renderBackup() {
     <label class="botao">Restaurar backup<input id="importar" type="file" accept=".json,application/json" hidden></label>
   </div>`;
   document.getElementById("exportar").onclick = () => {
+    const nome = `backup-estoque-${hoje()}.json`;
+    if (window.AndroidApp) return AndroidApp.salvarArquivo(nome, JSON.stringify(db, null, 2));  // app Android (APK)
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }));
-    a.download = `backup-estoque-${hoje()}.json`;
+    a.download = nome;
     a.click();
   };
   document.getElementById("importar").onchange = async e => {
@@ -276,4 +278,4 @@ function render() {
 }
 
 render();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+if ("serviceWorker" in navigator && !window.AndroidApp) navigator.serviceWorker.register("sw.js").catch(() => {});

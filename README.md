@@ -13,7 +13,16 @@ App para celular (Android) que controla:
 Funciona **sem internet** e sem servidor: os dados ficam salvos no próprio celular.
 Projeto independente, sem relação com nenhum outro app.
 
-## Instalar no Android
+## Instalar no Android pelo APK
+
+1. No celular, baixe: https://github.com/OpelMax/Controle-estoque-impressoras/releases/latest/download/controle-estoque.apk
+2. Abra o arquivo baixado e toque em **Instalar** (na primeira vez, o Android pede para permitir instalar apps desta fonte).
+3. Para atualizar, baixe e instale de novo por cima — os dados são mantidos.
+
+O APK é gerado automaticamente pelo GitHub (aba **Actions**) a cada atualização do código.
+Os dados do APK ficam separados dos da versão instalada pelo navegador: use **Backup → Restaurar** para levá-los.
+
+## Instalar no Android pelo navegador (alternativa)
 
 1. Abra o link do app no **Chrome** do celular.
 2. Toque em **Instalar app** (ou menu ⋮ → **Adicionar à tela inicial** → **Instalar**).
@@ -43,6 +52,8 @@ style.css              visual (pensado para celular)
 manifest.webmanifest   nome, ícone e cores do app instalado
 sw.js                  permite funcionar sem internet
 icons/                 ícones do app
+android/               projeto do APK (abre o app web numa tela nativa)
+.github/workflows/     automação que gera o APK
 ```
 
 Para testar no computador: `python3 -m http.server` dentro da pasta e abrir http://localhost:8000

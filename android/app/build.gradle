@@ -1,0 +1,53 @@
+plugins { id "com.android.application" }
+
+// Copia o app web (raiz do repositório) para dentro do APK, em assets/www
+def webDir = layout.buildDirectory.dir("generated/web")
+def copiarWeb = tasks.register("copiarWeb", Copy) {
+    from(rootProject.projectDir.parentFile) {
+        include "index.html", "app.js", "style.css", "manifest.webmanifest", "icons/**"
+    }
+    into webDir.map { it.dir("www") }
+}
+preBuild.dependsOn copiarWeb
+
+android {
+    namespace "br.com.estoqueimpressoras"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "br.com.estoqueimpressoras"
+        minSdk 24
+        targetSdk 34
+        // cada build do GitHub ganha um número maior, permitindo atualizar por cima
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        // Chave fixa: todas as versões têm a mesma assinatura, então atualizar não apaga os dados.
+        release {
+            storeFile file("estoque.keystore")
+            storePassword "estoque123"
+            keyAlias "estoque"
+            keyPassword "estoque123"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    sourceSets { main { assets.srcDirs += webDir } }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.webkit:webkit:1.11.0"
+}
